@@ -1,25 +1,80 @@
----
-title: "Reproducible Research: Peer Assessment 1"
-output: 
-  html_document:
-    keep_md: true
----
+# Analysis of Activity Monitoring Data
+Sagi Ganot
+
+## Introduction
+This report makes use of data from a personal activity monitoring device. This device collects data at 5 minute intervals through out the day. The data consists of two months of data from an anonymous individual collected during the months of October and November, 2012 and include the number of steps taken in 5 minute intervals each day. The data was analyzed using R and this report is produced using Rmarkdown and knitr, containing the code used for the analysis as well as the results.
+
+## Setup
+
+This section sets up the R working environment and loads the relevant libraries.
+
+```{r setup}
+knitr::opts_chunk$set(echo = TRUE)
+Sys.setlocale(category = "LC_ALL", locale = "english")
+library(plyr)
+library(lattice)
+```
 
 
-## Loading and preprocessing the data
+## Loading data
 
+This section loads the data.
 
+```{r load}
+data <- read.csv("activity.csv")
+data$date <- as.Date(data$date)
+```
 
-## What is mean total number of steps taken per day?
+## Sum of steps by day
 
+This section calculates the total number of steps taken each day, displays it as a histogram and calculates the mean and median number of steps per day.
 
+```{r dailysteps}
+dailysum <- tapply(data$steps,data$date,sum)
+hist_dailysum <- hist(dailysum,breaks=20,xlab="Interval")
+mean_dailysum <- mean(dailysum,na.rm=TRUE)
+median_dailysum <- median(dailysum,na.rm=TRUE)
+```
 
-## What is the average daily activity pattern?
+The mean is calculated to be `r mean_dailysum` and the median to be `r median_dailysum`.
 
+## Average steps by interval
 
+This section calculates the average number of steps for 5-minute intervals across all days, generates a plot showing the average throughout the day, and calculates the 5-minute interval for which the average is highest.
 
-## Imputing missing values
+```{r pattern}
+pattern <- tapply(data$steps,data$interval,mean,na.rm=TRUE)
+pattern2 <- data.frame(cbind(as.numeric(row.names(pattern)),pattern))
+plot(pattern2,type="l",xlab="Interval",ylab="Average Steps")
+max_int <- pattern2[which.max(pattern),1]
+max_steps <- max(pattern)
+```
 
+The 5-minute interval with the highest average (`r max_steps`) is `r max_int`.
 
+## Imputation of missing values
 
-## Are there differences in activity patterns between weekdays and weekends?
+Missing values are imputed to be the mean of that 5-minute interval over all days and the histogram, mean and median are recalculated.
+
+```{r missing}
+no_missing <- nrow(data)-nrow(data[complete.cases(data),])
+data2 <- data
+for (i in c(1:nrow(data2))) if (is.na(data2[i,1])) data2[i,1] <- pattern2[paste(data2[i,3]),2]
+dailysum_na <- tapply(data2$steps,data2$date,sum)
+hist_dailysum_with_na <- hist(dailysum_na,breaks=20,xlab="Interval")
+mean_dailysum_with_na <- mean(dailysum_na,na.rm=TRUE)
+median_dailysum_with_na <- median(dailysum_na,na.rm=TRUE)
+```
+
+There are `r no_missing` rows with missing values. The mean is calculated to be `r mean_dailysum_with_na` and the median to be `r median_dailysum_with_na`.
+
+## Analysis by weekdays
+
+The observations are separated into weekdays and weekends, and a panel plot is produced of the average number of steps for each 5-minute interval for each of the two categories.
+
+```{r weekdays}
+data3 <- mutate(data2,wd=weekdays(data2$date))
+for (i in 1:nrow(data3)) if (data3[i,4] %in% c("Saturday","Sunday")) data3[i,4] <- "Weekend" else data3[i,4] <- "Weekday"
+wd_interval <- aggregate(data3$steps,by=list(data3$interval,data3$wd),FUN=mean)
+xyplot(x ~ Group.1 | Group.2, data = wd_interval, layout=c(1,2),type="l",xlab="Interval",ylab="No. of steps")
+```
